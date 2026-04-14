@@ -1,0 +1,673 @@
+local getinfo = getinfo or debug.getinfo
+local DEBUG = false
+local Hooked = {}
+
+local Detected, Kill
+
+setthreadidentity(2)
+
+for i, v in getgc(true) do
+    if typeof(v) == "table" then
+        local DetectFunc = rawget(v, "Detected")
+        local KillFunc = rawget(v, "Kill")
+    
+        if typeof(DetectFunc) == "function" and not Detected then
+            Detected = DetectFunc
+            
+            local Old; Old = hookfunction(Detected, function(Action, Info, NoCrash)
+                if Action ~= "_" then
+                    if DEBUG then
+                        warn(`Adonis AntiCheat flagged\nMethod: {Action}\nInfo: {Info}`)
+                    end
+                end
+                
+                return true
+            end)
+
+            table.insert(Hooked, Detected)
+        end
+
+        if rawget(v, "Variables") and rawget(v, "Process") and typeof(KillFunc) == "function" and not Kill then
+            Kill = KillFunc
+            local Old; Old = hookfunction(Kill, function(Info)
+                if DEBUG then
+                    warn(`Adonis AntiCheat tried to kill (fallback): {Info}`)
+                end
+            end)
+
+            table.insert(Hooked, Kill)
+        end
+    end
+end
+
+local Old; Old = hookfunction(getrenv().debug.info, newcclosure(function(...)
+    local LevelOrFunc, Info = ...
+
+    if Detected and LevelOrFunc == Detected then
+        if DEBUG then
+            warn(`Adonis AntiCheat sanity check detected and broken`)
+        end
+
+        return coroutine.yield(coroutine.running())
+    end
+    
+    return Old(...)
+end))
+setthreadidentity(7)
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local CustomTheme = {
+	TextColor = Color3.fromRGB(240, 240, 240),
+	Background = Color3.fromRGB(15, 15, 15),
+	Topbar = Color3.fromRGB(25, 25, 25),
+	Shadow = Color3.fromRGB(10, 10, 10),
+	NotificationBackground = Color3.fromRGB(20, 20, 20),
+	NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
+	TabBackground = Color3.fromRGB(30, 30, 30),
+	TabStroke = Color3.fromRGB(50, 50, 50),
+	TabBackgroundSelected = Color3.fromRGB(80, 0, 0),
+	TabTextColor = Color3.fromRGB(240, 240, 240),
+	SelectedTabTextColor = Color3.fromRGB(255, 255, 255),
+	ElementBackground = Color3.fromRGB(25, 25, 25),
+	ElementBackgroundHover = Color3.fromRGB(35, 35, 35),
+	SecondaryElementBackground = Color3.fromRGB(20, 20, 20),
+	ElementStroke = Color3.fromRGB(45, 45, 45),
+	SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
+	SliderBackground = Color3.fromRGB(60, 0, 0),
+	SliderProgress = Color3.fromRGB(180, 0, 0),
+	SliderStroke = Color3.fromRGB(220, 40, 40),
+	ToggleBackground = Color3.fromRGB(30, 30, 30),
+	ToggleEnabled = Color3.fromRGB(180, 20, 20),
+	ToggleDisabled = Color3.fromRGB(80, 80, 80),
+	ToggleEnabledStroke = Color3.fromRGB(220, 40, 40),
+	ToggleDisabledStroke = Color3.fromRGB(100, 100, 100),
+	ToggleEnabledOuterStroke = Color3.fromRGB(140, 0, 0),
+	ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
+	DropdownSelected = Color3.fromRGB(50, 0, 0),
+	DropdownUnselected = Color3.fromRGB(30, 30, 30),
+	InputBackground = Color3.fromRGB(25, 25, 25),
+	InputStroke = Color3.fromRGB(60, 0, 0),
+	PlaceholderColor = Color3.fromRGB(178, 178, 178)
+}
+
+local Window = Rayfield:CreateWindow({
+	Name = "DemonHub by sskint",
+	LoadingTitle = "DemonHub",
+	LoadingSubtitle = "Hitbox • ESP • Aimbot • Red & Black",
+	ConfigurationSaving = { Enabled = false },
+	Theme = CustomTheme,
+})
+
+local HitboxTab = Window:CreateTab("Hitbox", 4483362458)
+local EspTab = Window:CreateTab("ESP", 6022668967)
+local AimbotTab = Window:CreateTab("Aimbot", 6022668967)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local hitboxEnabled = false
+local hitboxTeamCheck = true
+local hitboxNpc = false
+local hitboxPart = "HumanoidRootPart"
+local hitboxSize = 10
+
+local espEnabled = false
+local espTeamCheck = true
+local espNpc = false
+local highlightEnabled = true
+local boxEnabled = true
+local tracerEnabled = true
+local nameEnabled = true
+local offScreenEspEnabled = false   -- Keeps the toggle for performance
+
+local aimbotEnabled = false
+local aimbotTeamCheck = true
+local aimbotNpc = false
+local aimType = "Crosshair"
+local aimPart = "Head"
+local wallCheckEnabled = true
+local showFovCircle = true
+local fovRadius = 150
+local smoothness = 0.3
+
+local expandConnection = nil
+local renderConnection = nil
+local originalSizes = {}
+local espObjects = {}
+local fovCircle = nil
+local isHoldingRMB = false
+
+local commonParts = {
+	"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso",
+	"LeftUpperArm", "LeftLowerArm", "LeftHand",
+	"RightUpperArm", "RightLowerArm", "RightHand",
+	"LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+	"RightUpperLeg", "RightLowerLeg", "RightFoot"
+}
+
+local function getNpcModels()
+	local npcs = {}
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+			if Players:GetPlayerFromCharacter(obj) == nil then
+				table.insert(npcs, obj)
+			end
+		end
+	end
+	return npcs
+end
+
+local function restoreAllHitboxes()
+	for hrp, data in pairs(originalSizes) do
+		if hrp and hrp.Parent then
+			hrp.Size = data.Size
+			hrp.Transparency = data.Transparency
+			hrp.Color = data.Color
+			hrp.CanCollide = data.CanCollide
+			hrp.Massless = data.Massless
+		end
+	end
+	originalSizes = {}
+end
+
+-- FIXED CLEANUP: Completely safe and aggressive
+local function cleanupESP()
+	for model, data in pairs(espObjects) do
+		pcall(function() if data.Highlight then data.Highlight:Destroy() end end)
+		pcall(function() if data.Box and data.Box.Remove then data.Box:Remove() end end)
+		pcall(function() if data.Tracer and data.Tracer.Remove then data.Tracer:Remove() end end)
+		pcall(function() if data.Name and data.Name.Remove then data.Name:Remove() end end)
+	end
+	espObjects = {}
+	if fovCircle then
+		pcall(function() fovCircle:Remove() end)
+		fovCircle = nil
+	end
+end
+
+local function isValidTarget(model, isPlayerChar, useTeamCheck)
+	if not model or not model.Parent then return false end
+	local hrp = model:FindFirstChild("HumanoidRootPart")
+	local head = model:FindFirstChild("Head")
+	local humanoid = model:FindFirstChild("Humanoid")
+	if not hrp or not head or not humanoid then return false end
+	if humanoid.Health <= 0 then return false end
+
+	if isPlayerChar and useTeamCheck then
+		local player = Players:GetPlayerFromCharacter(model)
+		if not player then return false end
+		return player.Team ~= LocalPlayer.Team or player.Team == nil
+	end
+	return true
+end
+
+local function createESP(model, isPlayerChar)
+	if espObjects[model] then return end
+
+	local highlight = Instance.new("Highlight")
+	highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+	highlight.FillTransparency = 0.5
+	highlight.OutlineTransparency = 0
+	highlight.Parent = model
+
+	local fillColor = Color3.fromRGB(255, 50, 50)
+	if isPlayerChar then
+		local player = Players:GetPlayerFromCharacter(model)
+		if player and player.TeamColor then fillColor = player.TeamColor.Color end
+	end
+	highlight.FillColor = fillColor
+
+	local box = Drawing.new("Square")
+	box.Thickness = 2; box.Color = Color3.fromRGB(255, 50, 50); box.Filled = false; box.Transparency = 1
+
+	local tracer = Drawing.new("Line")
+	tracer.Thickness = 2; tracer.Color = Color3.fromRGB(255, 80, 80); tracer.Transparency = 1
+
+	local nameLabel = Drawing.new("Text")
+	nameLabel.Size = 14; nameLabel.Center = true; nameLabel.Outline = true; nameLabel.Color = Color3.fromRGB(255, 255, 255); nameLabel.Transparency = 1
+
+	espObjects[model] = {Highlight = highlight, Box = box, Tracer = tracer, Name = nameLabel}
+end
+
+local function updateESP()
+	if not espEnabled then return end
+
+	-- Create ESP
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			if isValidTarget(player.Character, true, espTeamCheck) then
+				if not espObjects[player.Character] then
+					createESP(player.Character, true)
+				end
+			end
+		end
+	end
+
+	if espNpc then
+		for _, obj in ipairs(getNpcModels()) do
+			if isValidTarget(obj, false, false) then
+				if not espObjects[obj] then
+					createESP(obj, false)
+				end
+			end
+		end
+	end
+
+	-- Update ESP - REMOVED onScreen restriction when Off Screen ESP is enabled
+	for model, data in pairs(espObjects) do
+		local isPlayerChar = Players:GetPlayerFromCharacter(model) ~= nil
+		if isValidTarget(model, isPlayerChar, isPlayerChar and espTeamCheck or false) then
+			local root = model:FindFirstChild("HumanoidRootPart")
+			local head = model:FindFirstChild("Head")
+
+			local headPos = Camera:WorldToViewportPoint(head.Position)
+			local rootPos = Camera:WorldToViewportPoint(root.Position)
+			local legPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3.5, 0))
+
+			local boxHeight = (legPos.Y - headPos.Y) * 1.1
+			local boxWidth = boxHeight * 0.55
+
+			-- When Off Screen ESP is ON → ALWAYS draw everything (even behind walls)
+			if offScreenEspEnabled or headPos.Z > 0 then
+				if boxEnabled then
+					data.Box.Visible = true
+					data.Box.Position = Vector2.new(headPos.X - boxWidth / 2, headPos.Y)
+					data.Box.Size = Vector2.new(boxWidth, boxHeight)
+				else
+					data.Box.Visible = false
+				end
+
+				if nameEnabled then
+					data.Name.Visible = true
+					data.Name.Text = model.Name
+					data.Name.Position = Vector2.new(headPos.X, headPos.Y - 25)
+				else
+					data.Name.Visible = false
+				end
+
+				if tracerEnabled then
+					data.Tracer.Visible = true
+					local screenBottom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+					data.Tracer.From = screenBottom
+					data.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
+				else
+					data.Tracer.Visible = false
+				end
+
+				data.Highlight.Enabled = highlightEnabled
+			else
+				data.Box.Visible = false
+				data.Tracer.Visible = false
+				data.Name.Visible = false
+				data.Highlight.Enabled = false
+			end
+		else
+			-- Aggressive cleanup
+			pcall(function() if data.Highlight then data.Highlight:Destroy() end end)
+			pcall(function() if data.Box and data.Box.Remove then data.Box:Remove() end end)
+			pcall(function() if data.Tracer and data.Tracer.Remove then data.Tracer:Remove() end end)
+			pcall(function() if data.Name and data.Name.Remove then data.Name:Remove() end end)
+			espObjects[model] = nil
+		end
+	end
+end
+
+local function getClosestTarget()
+	local closest = nil
+	local closestDist = math.huge
+	local mousePos = UserInputService:GetMouseLocation()
+	local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			if not aimbotTeamCheck or not (player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team) then
+				local char = player.Character
+				local targetPart = char:FindFirstChild(aimPart) or char:FindFirstChild("Head")
+				if targetPart then
+					local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+					if onScreen then
+						local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+						local finalDist = distToCrosshair
+						if aimType == "Player" and localHRP then finalDist = (localHRP.Position - targetPart.Position).Magnitude end
+						if aimType == "Health" then
+							local hum = char:FindFirstChild("Humanoid")
+							finalDist = hum and hum.Health or 9999
+						end
+
+						if finalDist < closestDist and distToCrosshair < fovRadius then
+							local origin = Camera.CFrame.Position
+							local direction = (targetPart.Position - origin)
+							local rayParams = RaycastParams.new()
+							rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+							rayParams.FilterType = Enum.RaycastFilterType.Exclude
+							local result = workspace:Raycast(origin, direction, rayParams)
+							if not wallCheckEnabled or (not result or result.Instance:IsDescendantOf(char)) then
+								closest = targetPart
+								closestDist = finalDist
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if aimbotNpc then
+		for _, obj in ipairs(getNpcModels()) do
+			local targetPart = obj:FindFirstChild(aimPart) or obj:FindFirstChild("Head")
+			if targetPart then
+				local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+				if onScreen then
+					local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+					local finalDist = distToCrosshair
+					if aimType == "Player" and localHRP then finalDist = (localHRP.Position - targetPart.Position).Magnitude end
+					if aimType == "Health" then
+						local hum = obj:FindFirstChild("Humanoid")
+						finalDist = hum and hum.Health or 9999
+					end
+
+					if finalDist < closestDist and distToCrosshair < fovRadius then
+						local origin = Camera.CFrame.Position
+						local direction = (targetPart.Position - origin)
+						local rayParams = RaycastParams.new()
+						rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+						rayParams.FilterType = Enum.RaycastFilterType.Exclude
+						local result = workspace:Raycast(origin, direction, rayParams)
+						if not wallCheckEnabled or (not result or result.Instance:IsDescendantOf(obj)) then
+							closest = targetPart
+							closestDist = finalDist
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return closest
+end
+
+local function updateHitboxes()
+	if not hitboxEnabled then return end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			if isValidTarget(player.Character, true, hitboxTeamCheck) then
+				local part = player.Character:FindFirstChild(hitboxPart)
+				if part and part:IsA("BasePart") then
+					if not originalSizes[part] then
+						originalSizes[part] = {Size = part.Size, Transparency = part.Transparency, Color = part.Color, CanCollide = part.CanCollide, Massless = part.Massless}
+					end
+					part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+					part.Transparency = 0.4
+					part.Color = Color3.fromRGB(200, 0, 0)
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+		end
+	end
+
+	if hitboxNpc then
+		for _, obj in ipairs(getNpcModels()) do
+			local part = obj:FindFirstChild(hitboxPart)
+			if part and part:IsA("BasePart") then
+				if not originalSizes[part] then
+					originalSizes[part] = {Size = part.Size, Transparency = part.Transparency, Color = part.Color, CanCollide = part.CanCollide, Massless = part.Massless}
+				end
+				part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+				part.Transparency = 0.4
+				part.Color = Color3.fromRGB(200, 0, 0)
+				part.CanCollide = false
+				part.Massless = true
+			end
+		end
+	end
+end
+
+local function onRenderStepped()
+	updateESP()
+
+	if showFovCircle then
+		if not fovCircle then
+			fovCircle = Drawing.new("Circle")
+			fovCircle.Color = Color3.fromRGB(255, 50, 50)
+			fovCircle.Thickness = 2
+			fovCircle.Transparency = 0.7
+			fovCircle.Filled = false
+		end
+		fovCircle.Radius = fovRadius
+		fovCircle.Position = UserInputService:GetMouseLocation()
+		fovCircle.Visible = true
+	elseif fovCircle then
+		fovCircle.Visible = false
+	end
+
+	if aimbotEnabled and isHoldingRMB then
+		local targetPart = getClosestTarget()
+		if targetPart then
+			local targetPos = targetPart.Position
+			local currentCFrame = Camera.CFrame
+			local targetCFrame = CFrame.lookAt(currentCFrame.Position, targetPos)
+			if smoothness <= 0 then
+				Camera.CFrame = targetCFrame
+			else
+				Camera.CFrame = currentCFrame:Lerp(targetCFrame, smoothness)
+			end
+		end
+	end
+end
+
+local function onInputBegan(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		isHoldingRMB = true
+	end
+end
+
+local function onInputEnded(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		isHoldingRMB = false
+	end
+end
+
+UserInputService.InputBegan:Connect(onInputBegan)
+UserInputService.InputEnded:Connect(onInputEnded)
+
+-- ====================== TABS ======================
+HitboxTab:CreateToggle({
+	Name = "Enable Hitbox Expander",
+	CurrentValue = false,
+	Flag = "HitboxEnabled",
+	Callback = function(Value)
+		hitboxEnabled = Value
+		if Value then
+			restoreAllHitboxes()
+			if not expandConnection then expandConnection = RunService.Heartbeat:Connect(updateHitboxes) end
+			Rayfield:Notify({Title = "DemonHub", Content = "Hitbox Expander Enabled", Duration = 3})
+		else
+			if expandConnection then expandConnection:Disconnect() expandConnection = nil end
+			restoreAllHitboxes()
+			Rayfield:Notify({Title = "DemonHub", Content = "Hitbox Expander Disabled", Duration = 3})
+		end
+	end,
+})
+
+HitboxTab:CreateToggle({
+	Name = "Team Check",
+	CurrentValue = true,
+	Flag = "HitboxTeamCheck",
+	Callback = function(Value) hitboxTeamCheck = Value end,
+})
+
+HitboxTab:CreateToggle({
+	Name = "NPCs",
+	CurrentValue = false,
+	Flag = "HitboxNpc",
+	Callback = function(Value) hitboxNpc = Value end,
+})
+
+HitboxTab:CreateDropdown({
+	Name = "Hitbox Part",
+	Options = commonParts,
+	CurrentOption = {"HumanoidRootPart"},
+	Flag = "HitboxPart",
+	Callback = function(Option) hitboxPart = Option[1] end,
+})
+
+HitboxTab:CreateSlider({
+	Name = "Hitbox Size",
+	Range = {0, 300},
+	Increment = 1,
+	CurrentValue = 10,
+	Flag = "HitboxSize",
+	Callback = function(Value) hitboxSize = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "Enable ESP",
+	CurrentValue = false,
+	Flag = "EspEnabled",
+	Callback = function(Value)
+		espEnabled = Value
+		if not Value then cleanupESP() end
+	end,
+})
+
+EspTab:CreateToggle({
+	Name = "Team Check",
+	CurrentValue = true,
+	Flag = "EspTeamCheck",
+	Callback = function(Value) espTeamCheck = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "Show Highlight",
+	CurrentValue = true,
+	Flag = "HighlightEnabled",
+	Callback = function(Value) highlightEnabled = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "Show Box",
+	CurrentValue = true,
+	Flag = "BoxEnabled",
+	Callback = function(Value) boxEnabled = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "Show Tracer",
+	CurrentValue = true,
+	Flag = "TracerEnabled",
+	Callback = function(Value) tracerEnabled = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "Show Name",
+	CurrentValue = true,
+	Flag = "NameEnabled",
+	Callback = function(Value) nameEnabled = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "Off Screen ESP (Wallhack)",
+	CurrentValue = false,
+	Flag = "OffScreenESP",
+	Callback = function(Value) offScreenEspEnabled = Value end,
+})
+
+EspTab:CreateToggle({
+	Name = "NPCs",
+	CurrentValue = false,
+	Flag = "EspNpc",
+	Callback = function(Value) espNpc = Value end,
+})
+
+AimbotTab:CreateToggle({
+	Name = "Enable Aimbot",
+	CurrentValue = false,
+	Flag = "AimbotEnabled",
+	Callback = function(Value)
+		aimbotEnabled = Value
+		if not Value then isHoldingRMB = false end
+	end,
+})
+
+AimbotTab:CreateToggle({
+	Name = "Team Check",
+	CurrentValue = true,
+	Flag = "AimbotTeamCheck",
+	Callback = function(Value) aimbotTeamCheck = Value end,
+})
+
+AimbotTab:CreateToggle({
+	Name = "NPCs",
+	CurrentValue = false,
+	Flag = "AimbotNpc",
+	Callback = function(Value) aimbotNpc = Value end,
+})
+
+AimbotTab:CreateDropdown({
+	Name = "Aim Part",
+	Options = commonParts,
+	CurrentOption = {"Head"},
+	Flag = "AimPart",
+	Callback = function(Option) aimPart = Option[1] end,
+})
+
+AimbotTab:CreateDropdown({
+	Name = "Aim Type",
+	Options = {"Closest to Crosshair", "Closest to Player", "Lowest Health"},
+	CurrentOption = {"Closest to Crosshair"},
+	Flag = "AimType",
+	Callback = function(Option) aimType = Option[1]:gsub("Closest to ", ""):gsub("Lowest ", "") end,
+})
+
+AimbotTab:CreateToggle({
+	Name = "Wall Check",
+	CurrentValue = true,
+	Flag = "WallCheck",
+	Callback = function(Value) wallCheckEnabled = Value end,
+})
+
+AimbotTab:CreateToggle({
+	Name = "Show FOV Circle",
+	CurrentValue = true,
+	Flag = "ShowFov",
+	Callback = function(Value) showFovCircle = Value end,
+})
+
+AimbotTab:CreateSlider({
+	Name = "FOV Radius",
+	Range = {50, 500},
+	Increment = 1,
+	CurrentValue = 150,
+	Flag = "FovRadius",
+	Callback = function(Value) fovRadius = Value end,
+})
+
+AimbotTab:CreateSlider({
+	Name = "Smoothing",
+	Range = {0, 1},
+	Increment = 0.01,
+	CurrentValue = 0.3,
+	Flag = "Smoothing",
+	Callback = function(Value) smoothness = Value end,
+})
+
+HitboxTab:CreateSection("Info")
+HitboxTab:CreateParagraph({
+	Title = "DemonHub by sskint",
+	Content = "• Hitbox Expander (any part + NPCs)\n• Full ESP + Wallhack (Off Screen ESP now works perfectly)\n• Aimbot (RMB hold)\n• Clean ESP (no ghost drawings)"
+})
+
+renderConnection = RunService.RenderStepped:Connect(onRenderStepped)
+
+Rayfield:Notify({
+	Title = "DemonHub by sskint",
+	Content = "Loaded • ESP Cleanup fixed + Off Screen ESP now works through walls",
+	Duration = 6,
+})
