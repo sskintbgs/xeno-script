@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local JSON_URL = "https://raw.githubusercontent.com/sskintbgs/xeno-script/refs/heads/main/xenoscripts_scripts_only.json"
+local JSON_URL = "https://raw.githubusercontent.com/sskintbgs/xeno-script/refs/heads/main/scripts.json"
 
 local ScriptsData = {}
 local success, response = pcall(function() return game:HttpGet(JSON_URL) end)
