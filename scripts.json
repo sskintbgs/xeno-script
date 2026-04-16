@@ -9046,5 +9046,41 @@
     "gameName": "Ink Games Script",
     "uploader": "azzyxy",
     "rawLoadstring": "loadstring(game:HttpGet('https://raw.githubusercontent.com/wefwef127382/inkgames.github.io/refs/heads/main/ringta.lua'))()"
+  },
+  {
+    "placeId": 97601044788031,
+    "gameName": "Prison Thugs Fast Train Script",
+    "uploader": "VelocityHub",
+    "rawLoadstring": "loadstring(game:HttpGet('https://raw.githubusercontent.com/gumanba/Scripts/main/PrisonThugs'))()"
+  },
+  {
+    "placeId": 76337761840610,
+    "gameName": "Steal Brainrots At Night OP Script",
+    "uploader": "Xeno",
+    "rawLoadstring": "loadstring(game:HttpGet('https://github.com/KhSaeed90/Roblox/raw/refs/heads/workspace/76337761840610'))()"
+  },
+  {
+    "placeId": 102192921830821,
+    "gameName": "Build A Farm Factory Auto Roll Script",
+    "uploader": "dev859526696",
+    "rawLoadstring": "loadstring(game:HttpGet('https://pastebin.com/raw/m7UpYpnd'))()"
+  },
+  {
+    "placeId": 99255447043899,
+    "gameName": "Become a Brainrot Script",
+    "uploader": "Xeno",
+    "rawLoadstring": "loadstring(game:HttpGet('https://raw.githubusercontent.com/gumanba/Scripts/main/BecomeaBrainrot'))()"
+  },
+  {
+    "placeId": 93978595733734,
+    "gameName": "Violence District Generator Teleport Script",
+    "uploader": "Showdown01",
+    "rawLoadstring": "loadstring(game:HttpGet('https://h4xscripts.xyz/loader'))()"
+  },
+  {
+    "placeId": 18680867089,
+    "gameName": "Ultimate Mining tycoon",
+    "uploader": "solfer2k734",
+    "rawLoadstring": "loadstring(game:HttpGet('https://api.jnkie.com/api/v1/luascripts/public/71ccc7e266bcca24318ef0a4959bbb90aa301470f39b00de85cb80fed006d875/download'))()"
   }
 ]
