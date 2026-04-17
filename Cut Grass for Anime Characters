@@ -1,0 +1,424 @@
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "DemonHub",
+    LoadingTitle = "Loading DemonHub...",
+    LoadingSubtitle = "loading",
+    ConfigurationSaving = { Enabled = false },
+})
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local AvailableCharacters = Workspace:WaitForChild("AvailableCharacters")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local GamestateEvent = Remotes:WaitForChild("GamestateEvent")
+local FuseLabels = ReplicatedStorage:WaitForChild("FuseLabels")
+
+-- Variables
+local carryEnabled = false
+local autoRebirthEnabled = false
+local buyDamageEnabled = false
+local claimCashEnabled = false
+local autoSellEnabled = false
+
+local postPromptDelay = 0
+local rebirthInterval = 0.01
+local buyDamageInterval = 0.01
+local claimCashInterval = 0.1
+local maxClaimSlots = 50
+local minMoneyPerSec = 0
+local sellInterval = 0.1
+local maxSellSlots = 30
+local scanInterval = 0.1
+
+local selectedRarities = {}
+local selectedVariants = {}
+local selectedRaritiesLower = {}
+local selectedVariantsLower = {}
+
+-- Lists
+local allRarities = {
+    "None", "uncommon", "rare", "epic", "legendary", "mythic",
+    "Secret", "celestial", "Divine", "extraterrestrial"
+}
+
+local allVariants = {
+    "None", "normal", "gold", "diamond", "rainbow", "glowing",
+    "heavenly", "inferno", "ethereal", "Crystal", "Electro"
+}
+
+
+-- Cache
+local characterCache = {}
+
+local function getValue(obj)
+    if not obj then return "" end
+    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+        return obj.Text:gsub("^%s+", ""):gsub("%s+$", "")
+    end
+    return tostring(obj.Value or obj.Text or "")
+end
+
+local function parseMoneyPerSec(text)
+    if not text or text == "" then return 0 end
+    text = text:upper():gsub("%$", ""):gsub("/S", ""):gsub(",", ""):gsub(" ", "")
+    local num = tonumber(text)
+    if num then return num end
+    local numPart, suffix = text:match("([%d%.]+)([KMBT]?)")
+    if numPart then
+        local value = tonumber(numPart) or 0
+        if suffix == "K" then return value * 1000 end
+        if suffix == "M" then return value * 1000000 end
+        if suffix == "B" then return value * 1000000000 end
+        if suffix == "T" then return value * 1000000000000 end
+        return value
+    end
+    return 0
+end
+
+local function cacheCharacter(model)
+    local brain = model:FindFirstChild("BrainrotInfo")
+    if not brain or not brain:FindFirstChild("Content") then
+        characterCache[model] = { rarityLower = "", variantLower = "", mps = 0 }
+        return
+    end
+
+    local content = brain.Content
+    local rawRarity = getValue(content:FindFirstChild("Rarity"))
+    local rawVariant = getValue(content:FindFirstChild("Variant"))
+
+    characterCache[model] = {
+        rarityLower = rawRarity:lower(),
+        variantLower = rawVariant:lower(),
+        mps = parseMoneyPerSec(getValue(content:FindFirstChild("MoneyPerSec")))
+    }
+end
+
+-- Initial cache
+for _, model in ipairs(AvailableCharacters:GetChildren()) do
+    cacheCharacter(model)
+end
+
+-- Filter
+local function shouldCarry(model)
+    if not carryEnabled then return false end
+
+    local data = characterCache[model]
+    if not data then return true end
+
+    local rarityOK = (#selectedRaritiesLower == 0)
+    if not rarityOK then
+        for _, sel in ipairs(selectedRaritiesLower) do
+            if sel == "none" then
+                if data.rarityLower == "" or data.rarityLower == "none" then
+                    rarityOK = true
+                    break
+                end
+            elseif sel == data.rarityLower then
+                rarityOK = true
+                break
+            end
+        end
+    end
+
+    local variantOK = (#selectedVariantsLower == 0)
+    if not variantOK then
+        for _, sel in ipairs(selectedVariantsLower) do
+            if sel == "none" then
+                if data.variantLower == "" or data.variantLower == "none" then
+                    variantOK = true
+                    break
+                end
+            elseif sel == data.variantLower then
+                variantOK = true
+                break
+            end
+        end
+    end
+
+    local mpsOK = data.mps >= minMoneyPerSec
+
+    return rarityOK and variantOK and mpsOK
+end
+
+local function fireProximityPrompt(model)
+    local prompt = model:FindFirstChild("ProximityPrompt") or model:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if not prompt then return end
+    if fireproximityprompt then
+        fireproximityprompt(prompt)
+    else
+        local old = prompt.HoldDuration
+        prompt.HoldDuration = 0
+        prompt:InputHoldBegin()
+        prompt:InputHoldEnd()
+        prompt.HoldDuration = old
+    end
+end
+
+local function processModel(model)
+    if not shouldCarry(model) then return end
+    task.defer(function()
+        fireProximityPrompt(model)
+        if postPromptDelay > 0 then task.wait(postPromptDelay) end
+        GamestateEvent:FireServer("FinishCarry")
+    end)
+end
+
+-- 0.1s scanner
+local function startScanner()
+    task.spawn(function()
+        while true do
+            if carryEnabled then
+                for _, model in ipairs(AvailableCharacters:GetChildren()) do
+                    cacheCharacter(model)
+                    processModel(model)
+                end
+            end
+            task.wait(scanInterval)
+        end
+    end)
+end
+
+startScanner()
+
+local function smartRefresh()
+    if not carryEnabled then return end
+    for _, model in ipairs(AvailableCharacters:GetChildren()) do
+        cacheCharacter(model)
+        processModel(model)
+    end
+end
+
+-- Child added
+AvailableCharacters.ChildAdded:Connect(function(model)
+    task.spawn(function()
+        cacheCharacter(model)
+        processModel(model)
+    end)
+end)
+
+-- Remotes
+local function doRebirth() GamestateEvent:FireServer("Rebirth") end
+local function buyDamage() GamestateEvent:FireServer("UpgradeUnique", "+1000 Damage") end
+local function claimCashSlot(slot) GamestateEvent:FireServer("ClaimCharacterCash", slot) end
+local function sellCharacters(slots)
+    if #slots > 0 then GamestateEvent:FireServer("SellCharacters", slots) end
+end
+
+-- Auto loops
+for _, model in ipairs(AvailableCharacters:GetChildren()) do
+    processModel(model)
+end
+
+task.spawn(function()
+    while true do
+        if autoRebirthEnabled then doRebirth() end
+        task.wait(rebirthInterval)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if buyDamageEnabled then buyDamage() end
+        task.wait(buyDamageInterval)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if claimCashEnabled then
+            for i = maxClaimSlots, 1, -1 do
+                claimCashSlot(i)
+                task.wait(0.01)
+            end
+        end
+        task.wait(claimCashInterval)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if autoSellEnabled then
+            local slots = {}
+            for i = 1, maxSellSlots do
+                table.insert(slots, i)
+            end
+            sellCharacters(slots)
+        end
+        task.wait(sellInterval)
+    end
+end)
+
+-- GUI
+local FarmTab = Window:CreateTab("Auto Farm", 4483362458)
+local UpgradesTab = Window:CreateTab("Upgrades", 4483362458)
+local UtilsTab = Window:CreateTab("Utilities", 4483362458)
+
+-- Auto Farm Tab
+FarmTab:CreateSection("Auto Carry")
+
+local CarryToggle = FarmTab:CreateToggle({
+    Name = "Enable Auto Carry",
+    CurrentValue = false,
+    Callback = function(v)
+        carryEnabled = v
+        if v then smartRefresh() end
+    end,
+})
+
+FarmTab:CreateSlider({
+    Name = "Post-Prompt Delay",
+    Range = {0, 0.05},
+    Increment = 0.001,
+    CurrentValue = 0,
+    Callback = function(v) postPromptDelay = v end
+})
+
+FarmTab:CreateSlider({
+    Name = "Scan Interval",
+    Range = {0.01, 1},
+    Increment = 0.01,
+    CurrentValue = 0.1,
+    Callback = function(v) scanInterval = v end
+})
+
+FarmTab:CreateSection("Filters")
+
+FarmTab:CreateDropdown({
+    Name = "Allowed Rarities",
+    Options = allRarities,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback = function(Options)
+        selectedRarities = Options
+        selectedRaritiesLower = {}
+        for _, opt in ipairs(Options) do
+            table.insert(selectedRaritiesLower, opt:lower())
+        end
+        if carryEnabled then smartRefresh() end
+    end,
+})
+
+FarmTab:CreateDropdown({
+    Name = "Allowed Variants",
+    Options = allVariants,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback = function(Options)
+        selectedVariants = Options
+        selectedVariantsLower = {}
+        for _, opt in ipairs(Options) do
+            table.insert(selectedVariantsLower, opt:lower())
+        end
+        if carryEnabled then smartRefresh() end
+    end,
+})
+
+FarmTab:CreateInput({
+    Name = "Minimum Money Per Second",
+    PlaceholderText = "0",
+    CurrentValue = "0",
+    Callback = function(v)
+        minMoneyPerSec = parseMoneyPerSec(v)
+        if carryEnabled then smartRefresh() end
+    end,
+})
+
+FarmTab:CreateButton({
+    Name = "Force Refresh Carry",
+    Callback = smartRefresh
+})
+
+FarmTab:CreateButton({
+    Name = "Clear All Filters",
+    Callback = function()
+        selectedRarities = {}
+        selectedVariants = {}
+        selectedRaritiesLower = {}
+        selectedVariantsLower = {}
+        minMoneyPerSec = 0
+        if carryEnabled then smartRefresh() end
+    end,
+})
+
+-- Upgrades Tab
+UpgradesTab:CreateSection("Auto Rebirth")
+UpgradesTab:CreateToggle({
+    Name = "Enable Auto Rebirth",
+    CurrentValue = false,
+    Callback = function(v) autoRebirthEnabled = v end,
+})
+UpgradesTab:CreateSlider({
+    Name = "Rebirth Interval",
+    Range = {0.01, 15},
+    Increment = 0.01,
+    CurrentValue = 0.01,
+    Callback = function(v) rebirthInterval = v end
+})
+
+UpgradesTab:CreateSection("Auto Buy Damage")
+UpgradesTab:CreateToggle({
+    Name = "Enable Auto Buy Damage",
+    CurrentValue = false,
+    Callback = function(v) buyDamageEnabled = v end,
+})
+UpgradesTab:CreateSlider({
+    Name = "Buy Damage Interval",
+    Range = {0.01, 8},
+    Increment = 0.01,
+    CurrentValue = 0.01,
+    Callback = function(v) buyDamageInterval = v end
+})
+
+UpgradesTab:CreateSection("Auto Claim Cash")
+UpgradesTab:CreateToggle({
+    Name = "Enable Auto Claim Cash",
+    CurrentValue = false,
+    Callback = function(v) claimCashEnabled = v end,
+})
+UpgradesTab:CreateSlider({
+    Name = "Claim Interval",
+    Range = {0.1, 10},
+    Increment = 0.1,
+    CurrentValue = 0.1,
+    Callback = function(v) claimCashInterval = v end
+})
+UpgradesTab:CreateSlider({
+    Name = "Max Claim Slots",
+    Range = {1, 100},
+    Increment = 1,
+    CurrentValue = 50,
+    Callback = function(v) maxClaimSlots = v end
+})
+
+-- Utilities Tab
+UtilsTab:CreateSection("Utilities")
+
+local function deleteGrass()
+    local count = 0
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj.Name:find("^SpawnedGrass_") then
+            obj:Destroy()
+            count += 1
+        end
+    end
+end
+
+UtilsTab:CreateButton({
+    Name = "Delete All Spawned Grass",
+    Callback = deleteGrass
+})
+
+-- F key toggle
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp or input.KeyCode ~= Enum.KeyCode.F then return end
+    carryEnabled = not carryEnabled
+    CarryToggle:Set(carryEnabled)
+    if carryEnabled then smartRefresh() end
+end)
