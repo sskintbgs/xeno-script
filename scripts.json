@@ -9136,5 +9136,41 @@
     "gameName": "This is",
     "uploader": "iwantjustxeno",
     "rawLoadstring": "loadstring(game:HttpGet('https://nazuro.xyz/99nights'))()"
+  },
+  {
+    "placeId": 133356782383463,
+    "gameName": "Auto Best Plants Script",
+    "uploader": "S0ftKillz",
+    "rawLoadstring": "loadstring(game:HttpGet('https://api.junkie-development.de/api/v1/luascripts/public/10fc7200dd134ce3cca42f3a031db69bbf16a90e5f144e4db6e7cab31b3ab1c3/download'))()"
+  },
+  {
+    "placeId": 85177851006073,
+    "gameName": "Drill for Brainrots Auto Collect Teleport Script",
+    "uploader": "alex_scripts",
+    "rawLoadstring": "loadstring(game:HttpGet('https://raw.githubusercontent.com/unrexl/Scripts/refs/heads/main/Driller'))()"
+  },
+  {
+    "placeId": 15781012611,
+    "gameName": "Zombies vs Humans Aimbot Script",
+    "uploader": "alex_scripts",
+    "rawLoadstring": "loadstring(game:HttpGet('https://rscripts.net/raw/zombie-vs-humans-cheetos_1776284927631_ynaQCebJZ8.txt'))()"
+  },
+  {
+    "placeId": 9870517705,
+    "gameName": "Paradox OP Script 2026 - Godmode, Auto use skills",
+    "uploader": "alex_scripts",
+    "rawLoadstring": "loadstring(game:HttpGet('https://discord.gg/kbvpxQhWe5'))()"
+  },
+  {
+    "placeId": 3101667897,
+    "gameName": "Legends Of Speed SP Hub v1.3 Duplicate Pets, Auto Evolve",
+    "uploader": "nadermohamed6",
+    "rawLoadstring": "loadstring(game:HttpGet('https://raw.githubusercontent.com/as6cd0/SP_Hub/refs/heads/main/LegendOfSpeed'))()"
+  },
+  {
+    "placeId": 77747658251236,
+    "gameName": "Sailor piece Dupe 100%",
+    "uploader": "deramosjim0167",
+    "rawLoadstring": "loadstring(game:HttpGet('https://pastefy.app/upqpsl0W/raw'))()"
   }
 ]
